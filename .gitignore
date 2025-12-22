@@ -6,4 +6,6 @@
 *.dylib
 *.test
 *.out
-*.json  
+*.json
+*.csv
+*.txt
