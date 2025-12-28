@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/Pawarez/goscanner/pkg/scanner"
 	"os"
+	"sync"
 	"strings"
 	"time"
 )
@@ -14,6 +15,7 @@ func main() {
 	targetInput := flag.String("target", "127.0.0.1", "Target IP or CIDR (e.g., '192.168.1.1' or '192.168.1.0/24')")
 	portsInput := flag.String("ports", "80,443", "Ports to scan (e.g., '80,443,8000-8080')")
 	jsonFilename := flag.String("json", "", "Output results to JSON file")
+	threads := flag.Int("threads", 100, "Number of concurrent threads")
 	flag.Parse()
 
 	targetPorts, err := scanner.ParsePorts(*portsInput)
@@ -37,16 +39,38 @@ func main() {
 	}
 	
 	
-	fmt.Printf("Scanning %d targets for %d ports...\n", len(targets), len(targetPorts))
+	fmt.Printf("Scanning %d targets with %d threads...\n", len(targets), *threads)
 	start := time.Now()
 
 	var allResults []scanner.PortResult
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	sem := make(chan struct{}, *threads)
 
 	for _ , host := range targets {
-		results := scanner.Run(host, targetPorts)
+		wg.Add(1) 
 
-		allResults = append(allResults, results...)
+		go func(h string) {
+			defer wg.Done()
+
+			sem <- struct{}{}
+
+			results := scanner.Run(h, targetPorts) 
+
+			<- sem
+
+			if len(results) > 0 {
+				mu.Lock()
+				allResults = append(allResults, results...)
+				mu.Unlock()
+
+				fmt.Printf("[+] Found %d ports on %s\n", len(results), h)
+			}
+		}(host)
 	}
+
+	wg.Wait()
 
 	elapsed := time.Since(start)
 
