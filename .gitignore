@@ -1,11 +1,12 @@
-# .gitignore
 *.exe
-*.exe~
 *.dll
 *.so
 *.dylib
-*.test
-*.out
+main
+
 *.json
 *.csv
 *.txt
+
+vendor/
+go.sum
